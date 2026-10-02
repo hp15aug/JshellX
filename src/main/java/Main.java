@@ -16,7 +16,7 @@ public class Main {
              String[] inputArray = input.split(" ");
 //             System.out.println(Arrays.toString(inputArray));
 
-             Set<String> inBuiltCommands = new HashSet<>(Arrays.asList("echo", "exit", "type"));
+             Set<String> inBuiltCommands = new HashSet<>(Arrays.asList("echo", "exit", "type", "pwd"));
 
              String firstCmd = inputArray[0];
 
@@ -37,6 +37,9 @@ public class Main {
                      System.out.println(inputArray[1]+ " is "+ path);
                  } else
                      System.out.println(inputArray[1]+": not found");
+             }
+             else if(firstCmd.equalsIgnoreCase("pwd")){
+                 System.out.println(System.getProperty("user.dir"));
              }
              //default
              else {
