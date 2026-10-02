@@ -9,6 +9,8 @@ public class Main {
 
          while(true){
              String input = sc.nextLine();
+             if(input.equalsIgnoreCase("exit"))
+                 break;
              System.out.println(input + ": command not found");
              System.out.print("$ ");
          }
