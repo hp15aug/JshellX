@@ -1,3 +1,4 @@
+import java.io.File;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Scanner;
@@ -15,22 +16,21 @@ public class Main {
              String[] inputArray = input.split(" ");
 //             System.out.println(Arrays.toString(inputArray));
 
-             Set<String> inBuiltCommands = new HashSet<>();
-             inBuiltCommands.add("echo");
-             inBuiltCommands.add("exit");
-             inBuiltCommands.add("type");
+             Set<String> inBuiltCommands = new HashSet<>(Arrays.asList("echo", "exit", "type"));
 
              String firstCmd = inputArray[0];
 
-             StringBuilder sb=new StringBuilder();
              if(input.equalsIgnoreCase("exit") && inputArray.length == 1)
                  break;
              else if(input.startsWith("echo ")){
                  System.out.println(input.substring(5));
              }else if(firstCmd.equalsIgnoreCase("type") && inputArray.length == 2){
+                 String path= isAvailable(inputArray[1]);
                  if(inBuiltCommands.contains(inputArray[1]))
                     System.out.println(inputArray[1]+ " is a shell builtin");
-                 else
+                 else if (!path.isEmpty()) {
+                     System.out.println(inputArray[1]+ " is "+ path);
+                 } else
                      System.out.println(inputArray[1]+": not found");
              }
              else{
@@ -38,5 +38,17 @@ public class Main {
              }
              System.out.print("$ ");
          }
+    }
+    private static String isAvailable(String str){
+        String pathEnv = System.getenv("PATH");
+        if(pathEnv == null)
+            return "";
+
+        for(String dir: pathEnv.split(File.pathSeparator)){
+            File file = new File(dir, str);
+            if(file.exists() && file.isFile() && file.canExecute())
+                return file.getAbsolutePath();
+        }
+        return "";
     }
 }
