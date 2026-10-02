@@ -9,9 +9,18 @@ public class Main {
 
          while(true){
              String input = sc.nextLine();
-             if(input.equalsIgnoreCase("exit"))
+             String[] inputArray = input.split(" ");
+             StringBuilder sb=new StringBuilder();
+             if(input.equalsIgnoreCase("exit") && inputArray.length == 1)
                  break;
-             System.out.println(input + ": command not found");
+             else if(inputArray[0].equalsIgnoreCase("echo")){
+                 for (int i = 1; i < inputArray.length; i++) {
+                     sb.append(inputArray[i]+" ");
+                 }
+                 System.out.println(sb.toString());
+             }else{
+                 System.out.println(input + ": command not found");
+             }
              System.out.print("$ ");
          }
 
