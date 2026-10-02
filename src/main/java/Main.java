@@ -1,9 +1,12 @@
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Scanner;
-import java.util.Set;
 
+import java.util.Set;
 public class Main {
     public static void main(String[] args) throws Exception {
         // TODO: Uncomment the code below to pass the first stage
@@ -11,12 +14,14 @@ public class Main {
 
          Scanner sc=new Scanner(System.in);
 
+        Path currentDir = Paths.get("").toAbsolutePath();
+
          while(true){
              String input = sc.nextLine();
              String[] inputArray = input.split(" ");
 //             System.out.println(Arrays.toString(inputArray));
 
-             Set<String> inBuiltCommands = new HashSet<>(Arrays.asList("echo", "exit", "type", "pwd"));
+             Set<String> inBuiltCommands = new HashSet<>(Arrays.asList("echo", "exit", "type", "pwd", "cd"));
 
              String firstCmd = inputArray[0];
 
@@ -39,13 +44,30 @@ public class Main {
                      System.out.println(inputArray[1]+": not found");
              }
              else if(firstCmd.equalsIgnoreCase("pwd")){
-                 System.out.println(System.getProperty("user.dir"));
+                 System.out.println(currentDir);
+             }
+
+             else if(firstCmd.equalsIgnoreCase("cd")){
+                 String target = inputArray.length > 1 ? inputArray[1] : "~";
+                 String expanded = target;
+
+                 if(target.equals("~") || target.startsWith("~/")){
+                     expanded = System.getenv("HOME") + target.substring(1);
+                 }
+
+                 Path newPath = currentDir.resolve(expanded).normalize();
+                 if(Files.isDirectory(newPath)){
+                     currentDir = newPath;
+                 } else {
+                     System.out.println("cd: " + target + ": No such file or directory");
+                 }
              }
              //default
              else {
                  String execFileName = isAvailable(firstCmd);
                  if(!execFileName.isEmpty()){
                      ProcessBuilder pb = new ProcessBuilder(inputArray);
+                     pb.directory(currentDir.toFile());
                      pb.inheritIO();
                      pb.start().waitFor();
                  } else {
