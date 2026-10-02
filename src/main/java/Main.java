@@ -20,11 +20,16 @@ public class Main {
 
              String firstCmd = inputArray[0];
 
-             if(input.equalsIgnoreCase("exit") && inputArray.length == 1)
+             //exit
+             if(input.equalsIgnoreCase("exit") && inputArray.length == 1) {
                  break;
+             }
+             //echo
              else if(input.startsWith("echo ")){
                  System.out.println(input.substring(5));
-             }else if(firstCmd.equalsIgnoreCase("type") && inputArray.length == 2){
+             }
+             //type
+             else if(firstCmd.equalsIgnoreCase("type") && inputArray.length == 2){
                  String path= isAvailable(inputArray[1]);
                  if(inBuiltCommands.contains(inputArray[1]))
                     System.out.println(inputArray[1]+ " is a shell builtin");
@@ -33,8 +38,16 @@ public class Main {
                  } else
                      System.out.println(inputArray[1]+": not found");
              }
-             else{
-                 System.out.println(input + ": command not found");
+             //default
+             else {
+                 String execFileName = isAvailable(firstCmd);
+                 if(!execFileName.isEmpty()){
+                     ProcessBuilder pb = new ProcessBuilder(inputArray);
+                     pb.inheritIO();
+                     pb.start().waitFor();
+                 } else {
+                     System.out.println(input + ": command not found");
+                 }
              }
              System.out.print("$ ");
          }
