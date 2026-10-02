@@ -13,11 +13,8 @@ public class Main {
              StringBuilder sb=new StringBuilder();
              if(input.equalsIgnoreCase("exit") && inputArray.length == 1)
                  break;
-             else if(inputArray[0].equalsIgnoreCase("echo")){
-                 for (int i = 1; i < inputArray.length; i++) {
-                     sb.append(inputArray[i]+" ");
-                 }
-                 System.out.println(sb.toString());
+             else if(input.startsWith("echo ")){
+                    System.out.println(input.substring(5));
              }else{
                  System.out.println(input + ": command not found");
              }
