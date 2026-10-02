@@ -19,7 +19,6 @@ public class Main {
          while(true){
              String input = sc.nextLine();
              String[] inputArray = input.split(" ");
-//             System.out.println(Arrays.toString(inputArray));
 
              Set<String> inBuiltCommands = new HashSet<>(Arrays.asList("echo", "exit", "type", "pwd", "cd"));
 
@@ -43,6 +42,7 @@ public class Main {
                  } else
                      System.out.println(inputArray[1]+": not found");
              }
+             //default
              else if(firstCmd.equalsIgnoreCase("pwd")){
                  System.out.println(currentDir);
              }
@@ -56,6 +56,7 @@ public class Main {
                  }
 
                  Path newPath = currentDir.resolve(expanded).normalize();
+
                  if(Files.isDirectory(newPath)){
                      currentDir = newPath;
                  } else {
@@ -68,8 +69,7 @@ public class Main {
                  if(!execFileName.isEmpty()){
                      ProcessBuilder pb = new ProcessBuilder(inputArray);
                      pb.directory(currentDir.toFile());
-                     pb.inheritIO();
-                     pb.start().waitFor();
+                     pb.inheritIO().start().waitFor();
                  } else {
                      System.out.println(input + ": command not found");
                  }
