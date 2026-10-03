@@ -1,4 +1,5 @@
 import command.Command;
+import command.cat.CatCommand;
 import command.cd.CdCommand;
 import command.echo.EchoCommand;
 import command.exit.ExitCommand;
@@ -7,6 +8,7 @@ import command.type.Type;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 import java.util.Set;
@@ -24,6 +26,7 @@ public class Main {
                 new EchoCommand(),
                 new Type(builtInCommands),
                 new PwdCommand(),
+                new CatCommand(),
                 new CdCommand());
 
         while (true) {
@@ -38,7 +41,7 @@ public class Main {
                 continue;
             }
 
-            String[] inputArray = input.split(" ");
+            String[] inputArray = parseArguments(input);
             boolean commandHandled = false;
 
             for (Command command : commandHandlers) {
@@ -68,5 +71,31 @@ public class Main {
         } else {
             System.out.println(input + ": command not found");
         }
+    }
+    private static String[] parseArguments(String input) {
+        List<String> tokens = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean inQuotes = false;
+        boolean tokenStarted = false;
+
+        for (char c : input.toCharArray()) {
+            if (c == '\'') {
+                inQuotes = !inQuotes;
+                tokenStarted = true;
+            } else if (c == ' ' && !inQuotes) {
+                if (tokenStarted) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                    tokenStarted = false;
+                }
+            } else {
+                current.append(c);
+                tokenStarted = true;
+            }
+        }
+        if (tokenStarted) {
+            tokens.add(current.toString());
+        }
+        return tokens.toArray(new String[0]);
     }
 }
