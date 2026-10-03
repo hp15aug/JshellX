@@ -6,6 +6,7 @@ import command.exit.ExitCommand;
 import command.pwd.PwdCommand;
 import command.type.Type;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -20,7 +21,7 @@ public class Main {
 
     private static final Set<String> builtInCommands = Set.of("echo", "exit", "type", "pwd", "cd");
 
-    private record ParsedCommand(String[] tokens, Path stdoutFile, Path stderrFile) {}
+    private record ParsedCommand(String[] tokens, Path stdoutFile, boolean appendStdout, Path stderrFile, boolean appendStderr) {}
 
     public static void main(String[] args) throws Exception {
         Scanner scanner = new Scanner(System.in);
@@ -65,28 +66,34 @@ public class Main {
         List<String> commandTokens = new ArrayList<>();
         Path stdoutFile = null;
         Path stderrFile = null;
+        boolean appendStdout = false;
+        boolean appendStderr = false;
 
         for (int i = 0; i < tokens.length; i++) {
             String token = tokens[i];
-            boolean isStdout = token.equals(">") || token.equals("1>");
-            boolean isStderr = token.equals("2>");
+            boolean isStdoutOverwrite = token.equals(">") || token.equals("1>");
+            boolean isStderrOverwrite = token.equals("2>");
+            boolean isStdoutAppend = token.equals(">>") || token.equals("1>>");
+            boolean isStderrAppend = token.equals("2>>");
 
-            if (isStdout || isStderr) {
+            if (isStdoutOverwrite || isStderrOverwrite || isStderrAppend || isStdoutAppend) {
                 if (i + 1 >= tokens.length) {
                     System.out.println("syntax error: expected file name after redirect");
                     return null;
                 }
                 Path file = currentDirectory.resolve(tokens[++i]);
-                if (isStdout) {
+                if (isStdoutOverwrite || isStdoutAppend) {
                     stdoutFile = file;
-                } else {
+                    appendStdout = isStdoutAppend;
+                } else if(isStderrOverwrite || isStderrAppend){
                     stderrFile = file;
+                    appendStdout = isStderrAppend;
                 }
             } else {
                 commandTokens.add(token);
             }
         }
-        return new ParsedCommand(commandTokens.toArray(new String[0]), stdoutFile, stderrFile);
+        return new ParsedCommand(commandTokens.toArray(new String[0]), stdoutFile, appendStdout, stderrFile, appendStderr);
     }
 
     private static Command findHandler(List<Command> handlers, String input, String[] inputArray) {
@@ -107,11 +114,11 @@ public class Main {
 
         try {
             if (parsed.stdoutFile() != null) {
-                fileOut = new PrintStream(new FileOutputStream(parsed.stdoutFile().toFile()));
+                fileOut = new PrintStream(new FileOutputStream(parsed.stdoutFile().toFile(), parsed.appendStdout()));
                 System.setOut(fileOut);
             }
             if (parsed.stderrFile() != null) {
-                fileErr = new PrintStream(new FileOutputStream(parsed.stderrFile().toFile()));
+                fileErr = new PrintStream(new FileOutputStream(parsed.stderrFile().toFile(), parsed.appendStderr()));
                 System.setErr(fileErr);
             }
             return handler.execute(input, inputArray, currentDirectory);
@@ -138,13 +145,19 @@ public class Main {
         processBuilder.redirectInput(ProcessBuilder.Redirect.INHERIT);
 
         if (parsed.stdoutFile() != null) {
-            processBuilder.redirectOutput(parsed.stdoutFile().toFile());
+            File outFile = parsed.stdoutFile().toFile();
+            processBuilder.redirectOutput(parsed.appendStdout()
+                    ? ProcessBuilder.Redirect.appendTo(outFile)
+                    : ProcessBuilder.Redirect.to(outFile));
         } else {
             processBuilder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
         }
 
         if (parsed.stderrFile() != null) {
-            processBuilder.redirectError(parsed.stderrFile().toFile());
+            File errFile = parsed.stderrFile().toFile();
+            processBuilder.redirectError(parsed.appendStderr()
+                    ? ProcessBuilder.Redirect.appendTo(errFile)
+                    : ProcessBuilder.Redirect.to(errFile));
         } else {
             processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
         }
