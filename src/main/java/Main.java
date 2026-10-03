@@ -32,7 +32,6 @@ public class Main {
                 new EchoCommand(),
                 new Type(builtInCommands),
                 new PwdCommand(),
-                new CatCommand(),
                 new CdCommand());
 
         while (true) {
@@ -87,7 +86,7 @@ public class Main {
                     appendStdout = isStdoutAppend;
                 } else if(isStderrOverwrite || isStderrAppend){
                     stderrFile = file;
-                    appendStdout = isStderrAppend;
+                    appendStderr = isStderrAppend;
                 }
             } else {
                 commandTokens.add(token);
