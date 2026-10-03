@@ -72,41 +72,49 @@ public class Main {
             System.out.println(input + ": command not found");
         }
     }
-    private static String[] parseArguments(String input) {
+    private static String[] parseArguments(String input){
         List<String> tokens = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
+        StringBuilder curr = new StringBuilder();
         boolean inSingleQuotes = false;
         boolean inDoubleQuotes = false;
         boolean tokenStarted = false;
 
         char[] chars = input.toCharArray();
-        for (int i = 0; i < chars.length; i++) {
-            char c = chars[i];
 
-            if (c == '\\' && !inSingleQuotes && !inDoubleQuotes) {
-                if (i + 1 < chars.length) {
-                    current.append(chars[++i]);
+        for(int i=0; i<chars.length; i++){
+            char ch = chars[i];
+
+            if(ch == '\\' && inDoubleQuotes){
+                if(i+1 < chars.length && (chars[i+1] == '"' || chars[i+1] == '\\')){
+                    curr.append(chars[++i]);
+                }else{
+                    curr.append(ch);
                 }
                 tokenStarted = true;
-            } else if (c == '\'' && !inDoubleQuotes) {
+            }else if(ch == '\\' && !inSingleQuotes){
+                if(i+1 < chars.length){
+                    curr.append(chars[++i]);
+                }
+                tokenStarted = true;
+            } else if (ch == '\'' && !inDoubleQuotes) {
                 inSingleQuotes = !inSingleQuotes;
                 tokenStarted = true;
-            } else if (c == '"' && !inSingleQuotes) {
+            } else if(ch == '"' && !inSingleQuotes){
                 inDoubleQuotes = !inDoubleQuotes;
                 tokenStarted = true;
-            } else if (c == ' ' && !inSingleQuotes && !inDoubleQuotes) {
+            }else if (ch == ' ' && !inSingleQuotes && !inDoubleQuotes){
                 if (tokenStarted) {
-                    tokens.add(current.toString());
-                    current.setLength(0);
+                    tokens.add(curr.toString());
+                    curr.setLength(0);
                     tokenStarted = false;
                 }
-            } else {
-                current.append(c);
+            }else{
+                curr.append(ch);
                 tokenStarted = true;
             }
         }
         if (tokenStarted) {
-            tokens.add(current.toString());
+            tokens.add(curr.toString());
         }
         return tokens.toArray(new String[0]);
     }
