@@ -12,14 +12,13 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Scanner;
-import java.util.Set;
+import java.util.*;
 
 public class Main {
 
     private static final Set<String> builtInCommands = Set.of("echo", "exit", "type", "pwd", "cd", "jobs");
+
+    private static int nextJobNumber = 1;
 
     private record ParsedCommand(String[] tokens, Path stdoutFile, boolean appendStdout, Path stderrFile, boolean appendStderr) {}
 
@@ -53,11 +52,19 @@ public class Main {
             }
             String[] inputArray = parsed.tokens();
 
+            boolean background = inputArray[inputArray.length-1].equals("&");
+            if (background) {
+                inputArray = Arrays.copyOf(inputArray, inputArray.length-1);
+                if (inputArray.length == 0) {
+                    continue;
+                }
+            }
+
             Command handler = findHandler(commandHandlers, input, inputArray);
             if (handler != null) {
                 currentDirectory = executeBuiltin(handler, input, inputArray, currentDirectory, parsed);
             } else {
-                executeExternalCommand(input, inputArray, currentDirectory, parsed);
+                executeExternalCommand(input, inputArray, currentDirectory, parsed, background);
             }
         }
     }
@@ -131,7 +138,7 @@ public class Main {
     }
 
     private static void executeExternalCommand(String input, String[] inputArray,
-                                               Path currentDirectory, ParsedCommand parsed) throws Exception {
+                                               Path currentDirectory, ParsedCommand parsed, boolean background) throws Exception {
         String commandName = inputArray[0];
         String executablePath = Command.isAvailable(commandName);
 
@@ -142,7 +149,10 @@ public class Main {
 
         ProcessBuilder processBuilder = new ProcessBuilder(inputArray);
         processBuilder.directory(currentDirectory.toFile());
-        processBuilder.redirectInput(ProcessBuilder.Redirect.INHERIT);
+
+        if (!background) {
+            processBuilder.redirectInput(ProcessBuilder.Redirect.INHERIT);
+        }
 
         if (parsed.stdoutFile() != null) {
             File outFile = parsed.stdoutFile().toFile();
@@ -163,8 +173,13 @@ public class Main {
         }
 
         try {
-            processBuilder.start().waitFor();
-        } catch (IOException e) {
+            Process process = processBuilder.start();
+            if (background) {
+                System.out.println("["+(nextJobNumber++)+"] "+process.pid());
+            }else{
+                process.waitFor();
+            }
+        } catch (IOException | InterruptedException e) {
             System.out.println(commandName + ": " + e.getMessage());
         }
     }
