@@ -79,8 +79,16 @@ public class Main {
         boolean inDoubleQuotes = false;
         boolean tokenStarted = false;
 
-        for (char c : input.toCharArray()) {
-            if (c == '\'' && !inDoubleQuotes) {
+        char[] chars = input.toCharArray();
+        for (int i = 0; i < chars.length; i++) {
+            char c = chars[i];
+
+            if (c == '\\' && !inSingleQuotes && !inDoubleQuotes) {
+                if (i + 1 < chars.length) {
+                    current.append(chars[++i]);
+                }
+                tokenStarted = true;
+            } else if (c == '\'' && !inDoubleQuotes) {
                 inSingleQuotes = !inSingleQuotes;
                 tokenStarted = true;
             } else if (c == '"' && !inSingleQuotes) {
