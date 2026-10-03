@@ -1,8 +1,8 @@
 import command.Command;
-import command.cat.CatCommand;
 import command.cd.CdCommand;
 import command.echo.EchoCommand;
 import command.exit.ExitCommand;
+import command.jobs.JobsCommand;
 import command.pwd.PwdCommand;
 import command.type.Type;
 
@@ -19,7 +19,7 @@ import java.util.Set;
 
 public class Main {
 
-    private static final Set<String> builtInCommands = Set.of("echo", "exit", "type", "pwd", "cd");
+    private static final Set<String> builtInCommands = Set.of("echo", "exit", "type", "pwd", "cd", "jobs");
 
     private record ParsedCommand(String[] tokens, Path stdoutFile, boolean appendStdout, Path stderrFile, boolean appendStderr) {}
 
@@ -32,6 +32,7 @@ public class Main {
                 new EchoCommand(),
                 new Type(builtInCommands),
                 new PwdCommand(),
+                new JobsCommand(),
                 new CdCommand());
 
         while (true) {
