@@ -6,12 +6,10 @@ import command.exit.ExitCommand;
 import command.pwd.PwdCommand;
 import command.type.Type;
 
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Scanner;
-import java.util.Set;
+import java.util.*;
 
 public class Main {
 
@@ -42,35 +40,86 @@ public class Main {
             }
 
             String[] inputArray = parseArguments(input);
-            boolean commandHandled = false;
 
-            for (Command command : commandHandlers) {
-                if (command.matches(input, inputArray)) {
-                    currentDirectory = command.execute(input, inputArray, currentDirectory);
-                    commandHandled = true;
-                    break;
+            boolean commandHandled = false;
+            Path redirectFile = null;
+            int redirectIndex = findRedirectIndex(inputArray);
+
+            if(redirectIndex != -1){
+                if (redirectIndex + 1 >= inputArray.length) {
+                    System.out.println("syntax error: expected file name after redirect");
+                    continue;
                 }
+                redirectFile = currentDirectory.resolve(inputArray[redirectIndex +1]);
+                inputArray = Arrays.copyOfRange(inputArray, 0, redirectIndex);
             }
 
-            if (!commandHandled) {
-                executeExternalCommand(input, inputArray, currentDirectory);
+            if(inputArray.length == 0)
+                continue;
+
+            Command handler = findHandler(commandHandlers, input, inputArray);
+            if (handler != null) {
+                currentDirectory = executeBuiltin(handler, input, inputArray, currentDirectory, redirectFile);
+            }else{
+                executeExternalCommand(input, inputArray, currentDirectory, redirectFile);
             }
         }
     }
 
-    private static void executeExternalCommand(String input, String[] inputArray, Path currentDirectory)
+    private static int findRedirectIndex(String[] tokens) {
+        for (int i = 0; i < tokens.length; i++) {
+            if(tokens[i].equals(">") || tokens[i].equals("1>")){
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static Command findHandler(List<Command> commandHandlers, String input, String[] inputArray) {
+        for(Command command: commandHandlers){
+            if (command.matches(input, inputArray)) {
+                return command;
+            }
+        }
+        return null;
+    }
+
+    private static Path executeBuiltin(Command handler, String input, String[] inputArray, Path currentDirectory, Path redirectFile) throws Exception {
+        if (redirectFile == null) {
+            return  handler.execute(input, inputArray, currentDirectory);
+        }
+
+        PrintStream original = System.out;
+        try (PrintStream fileOut = new PrintStream(redirectFile.toFile())){
+            System.setOut(fileOut);
+            return handler.execute(input, inputArray, currentDirectory);
+        }finally {
+            System.setOut(original);
+        }
+    }
+
+    private static void executeExternalCommand(String input, String[] inputArray, Path currentDirectory, Path redirectFile)
             throws Exception {
 
         String commandName = inputArray[0];
         String executablePath = Command.isAvailable(commandName);
 
-        if (!executablePath.isEmpty()) {
-            ProcessBuilder processBuilder = new ProcessBuilder(inputArray);
-            processBuilder.directory(currentDirectory.toFile());
-            processBuilder.inheritIO().start().waitFor();
-        } else {
-            System.out.println(input + ": command not found");
+        if (executablePath.isEmpty()) {
+            System.out.println(input +": command not found");
+            return;
         }
+
+        ProcessBuilder processBuilder = new ProcessBuilder(inputArray);
+        processBuilder.directory(currentDirectory.toFile());
+
+        if (redirectFile != null) {
+            processBuilder.redirectInput(ProcessBuilder.Redirect.INHERIT);
+            processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
+            processBuilder.redirectOutput(redirectFile.toFile());
+        }else{
+            processBuilder.inheritIO();
+        }
+        processBuilder.start().waitFor();
     }
     private static String[] parseArguments(String input){
         List<String> tokens = new ArrayList<>();
