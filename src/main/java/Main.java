@@ -6,14 +6,21 @@ import command.exit.ExitCommand;
 import command.pwd.PwdCommand;
 import command.type.Type;
 
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+import java.util.Set;
 
 public class Main {
 
     private static final Set<String> builtInCommands = Set.of("echo", "exit", "type", "pwd", "cd");
+
+    private record ParsedCommand(String[] tokens, Path stdoutFile, Path stderrFile) {}
 
     public static void main(String[] args) throws Exception {
         Scanner scanner = new Scanner(System.in);
@@ -39,44 +46,51 @@ public class Main {
                 continue;
             }
 
-            String[] inputArray = parseArguments(input);
-
-            boolean commandHandled = false;
-            Path redirectFile = null;
-            int redirectIndex = findRedirectIndex(inputArray);
-
-            if(redirectIndex != -1){
-                if (redirectIndex + 1 >= inputArray.length) {
-                    System.out.println("syntax error: expected file name after redirect");
-                    continue;
-                }
-                redirectFile = currentDirectory.resolve(inputArray[redirectIndex +1]);
-                inputArray = Arrays.copyOfRange(inputArray, 0, redirectIndex);
-            }
-
-            if(inputArray.length == 0)
+            ParsedCommand parsed = extractRedirects(parseArguments(input), currentDirectory);
+            if (parsed == null || parsed.tokens().length == 0) {
                 continue;
+            }
+            String[] inputArray = parsed.tokens();
 
             Command handler = findHandler(commandHandlers, input, inputArray);
             if (handler != null) {
-                currentDirectory = executeBuiltin(handler, input, inputArray, currentDirectory, redirectFile);
-            }else{
-                executeExternalCommand(input, inputArray, currentDirectory, redirectFile);
+                currentDirectory = executeBuiltin(handler, input, inputArray, currentDirectory, parsed);
+            } else {
+                executeExternalCommand(input, inputArray, currentDirectory, parsed);
             }
         }
     }
 
-    private static int findRedirectIndex(String[] tokens) {
+    private static ParsedCommand extractRedirects(String[] tokens, Path currentDirectory) {
+        List<String> commandTokens = new ArrayList<>();
+        Path stdoutFile = null;
+        Path stderrFile = null;
+
         for (int i = 0; i < tokens.length; i++) {
-            if(tokens[i].equals(">") || tokens[i].equals("1>")){
-                return i;
+            String token = tokens[i];
+            boolean isStdout = token.equals(">") || token.equals("1>");
+            boolean isStderr = token.equals("2>");
+
+            if (isStdout || isStderr) {
+                if (i + 1 >= tokens.length) {
+                    System.out.println("syntax error: expected file name after redirect");
+                    return null;
+                }
+                Path file = currentDirectory.resolve(tokens[++i]);
+                if (isStdout) {
+                    stdoutFile = file;
+                } else {
+                    stderrFile = file;
+                }
+            } else {
+                commandTokens.add(token);
             }
         }
-        return -1;
+        return new ParsedCommand(commandTokens.toArray(new String[0]), stdoutFile, stderrFile);
     }
 
-    private static Command findHandler(List<Command> commandHandlers, String input, String[] inputArray) {
-        for(Command command: commandHandlers){
+    private static Command findHandler(List<Command> handlers, String input, String[] inputArray) {
+        for (Command command : handlers) {
             if (command.matches(input, inputArray)) {
                 return command;
             }
@@ -84,86 +98,106 @@ public class Main {
         return null;
     }
 
-    private static Path executeBuiltin(Command handler, String input, String[] inputArray, Path currentDirectory, Path redirectFile) throws Exception {
-        if (redirectFile == null) {
-            return  handler.execute(input, inputArray, currentDirectory);
-        }
+    private static Path executeBuiltin(Command handler, String input, String[] inputArray,
+                                       Path currentDirectory, ParsedCommand parsed) throws Exception {
+        PrintStream originalOut = System.out;
+        PrintStream originalErr = System.err;
+        PrintStream fileOut = null;
+        PrintStream fileErr = null;
 
-        PrintStream original = System.out;
-        try (PrintStream fileOut = new PrintStream(redirectFile.toFile())){
-            System.setOut(fileOut);
+        try {
+            if (parsed.stdoutFile() != null) {
+                fileOut = new PrintStream(new FileOutputStream(parsed.stdoutFile().toFile()));
+                System.setOut(fileOut);
+            }
+            if (parsed.stderrFile() != null) {
+                fileErr = new PrintStream(new FileOutputStream(parsed.stderrFile().toFile()));
+                System.setErr(fileErr);
+            }
             return handler.execute(input, inputArray, currentDirectory);
-        }finally {
-            System.setOut(original);
+        } finally {
+            System.setOut(originalOut);
+            System.setErr(originalErr);
+            if (fileOut != null) fileOut.close();
+            if (fileErr != null) fileErr.close();
         }
     }
 
-    private static void executeExternalCommand(String input, String[] inputArray, Path currentDirectory, Path redirectFile)
-            throws Exception {
-
+    private static void executeExternalCommand(String input, String[] inputArray,
+                                               Path currentDirectory, ParsedCommand parsed) throws Exception {
         String commandName = inputArray[0];
         String executablePath = Command.isAvailable(commandName);
 
         if (executablePath.isEmpty()) {
-            System.out.println(input +": command not found");
+            System.out.println(input + ": command not found");
             return;
         }
 
         ProcessBuilder processBuilder = new ProcessBuilder(inputArray);
         processBuilder.directory(currentDirectory.toFile());
+        processBuilder.redirectInput(ProcessBuilder.Redirect.INHERIT);
 
-        if (redirectFile != null) {
-            processBuilder.redirectInput(ProcessBuilder.Redirect.INHERIT);
-            processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
-            processBuilder.redirectOutput(redirectFile.toFile());
-        }else{
-            processBuilder.inheritIO();
+        if (parsed.stdoutFile() != null) {
+            processBuilder.redirectOutput(parsed.stdoutFile().toFile());
+        } else {
+            processBuilder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
         }
-        processBuilder.start().waitFor();
+
+        if (parsed.stderrFile() != null) {
+            processBuilder.redirectError(parsed.stderrFile().toFile());
+        } else {
+            processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
+        }
+
+        try {
+            processBuilder.start().waitFor();
+        } catch (IOException e) {
+            System.out.println(commandName + ": " + e.getMessage());
+        }
     }
-    private static String[] parseArguments(String input){
+
+    private static String[] parseArguments(String input) {
         List<String> tokens = new ArrayList<>();
-        StringBuilder curr = new StringBuilder();
+        StringBuilder current = new StringBuilder();
         boolean inSingleQuotes = false;
         boolean inDoubleQuotes = false;
         boolean tokenStarted = false;
 
         char[] chars = input.toCharArray();
+        for (int i = 0; i < chars.length; i++) {
+            char c = chars[i];
 
-        for(int i=0; i<chars.length; i++){
-            char ch = chars[i];
-
-            if(ch == '\\' && inDoubleQuotes){
-                if(i+1 < chars.length && (chars[i+1] == '"' || chars[i+1] == '\\')){
-                    curr.append(chars[++i]);
-                }else{
-                    curr.append(ch);
+            if (c == '\\' && inDoubleQuotes) {
+                if (i + 1 < chars.length && (chars[i + 1] == '"' || chars[i + 1] == '\\')) {
+                    current.append(chars[++i]);
+                } else {
+                    current.append(c);
                 }
                 tokenStarted = true;
-            }else if(ch == '\\' && !inSingleQuotes){
-                if(i+1 < chars.length){
-                    curr.append(chars[++i]);
+            } else if (c == '\\' && !inSingleQuotes) {
+                if (i + 1 < chars.length) {
+                    current.append(chars[++i]);
                 }
                 tokenStarted = true;
-            } else if (ch == '\'' && !inDoubleQuotes) {
+            } else if (c == '\'' && !inDoubleQuotes) {
                 inSingleQuotes = !inSingleQuotes;
                 tokenStarted = true;
-            } else if(ch == '"' && !inSingleQuotes){
+            } else if (c == '"' && !inSingleQuotes) {
                 inDoubleQuotes = !inDoubleQuotes;
                 tokenStarted = true;
-            }else if (ch == ' ' && !inSingleQuotes && !inDoubleQuotes){
+            } else if (c == ' ' && !inSingleQuotes && !inDoubleQuotes) {
                 if (tokenStarted) {
-                    tokens.add(curr.toString());
-                    curr.setLength(0);
+                    tokens.add(current.toString());
+                    current.setLength(0);
                     tokenStarted = false;
                 }
-            }else{
-                curr.append(ch);
+            } else {
+                current.append(c);
                 tokenStarted = true;
             }
         }
         if (tokenStarted) {
-            tokens.add(curr.toString());
+            tokens.add(current.toString());
         }
         return tokens.toArray(new String[0]);
     }
