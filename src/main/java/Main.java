@@ -175,7 +175,10 @@ public class Main {
         try {
             Process process = processBuilder.start();
             if (background) {
+                int jobId = nextJobNumber;
                 System.out.println("["+(nextJobNumber++)+"] "+process.pid());
+
+                JobsCommand.activeJobs.add(new JobsCommand.Job(jobId, process, input));
             }else{
                 process.waitFor();
             }
