@@ -75,14 +75,18 @@ public class Main {
     private static String[] parseArguments(String input) {
         List<String> tokens = new ArrayList<>();
         StringBuilder current = new StringBuilder();
-        boolean inQuotes = false;
+        boolean inSingleQuotes = false;
+        boolean inDoubleQuotes = false;
         boolean tokenStarted = false;
 
         for (char c : input.toCharArray()) {
-            if (c == '\'') {
-                inQuotes = !inQuotes;
+            if (c == '\'' && !inDoubleQuotes) {
+                inSingleQuotes = !inSingleQuotes;
                 tokenStarted = true;
-            } else if (c == ' ' && !inQuotes) {
+            } else if (c == '"' && !inSingleQuotes) {
+                inDoubleQuotes = !inDoubleQuotes;
+                tokenStarted = true;
+            } else if (c == ' ' && !inSingleQuotes && !inDoubleQuotes) {
                 if (tokenStarted) {
                     tokens.add(current.toString());
                     current.setLength(0);
