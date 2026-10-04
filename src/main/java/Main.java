@@ -37,6 +37,7 @@ public class Main {
                 new CdCommand());
 
         while (true) {
+            JobsCommand.reap(jobs, false);
             System.out.print("$ ");
 
             if (!scanner.hasNextLine()) {

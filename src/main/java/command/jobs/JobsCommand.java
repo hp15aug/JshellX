@@ -21,6 +21,11 @@ public class JobsCommand implements Command {
 
     @Override
     public Path execute(String input, String[] inputArray, Path currentDir) throws Exception {
+        reap(jobs, true);
+        return currentDir;
+    }
+
+    public static void reap(List<Job> jobs, boolean showRunning) {
         List<Job> finished = new ArrayList<>();
         int size = jobs.size();
 
@@ -28,18 +33,16 @@ public class JobsCommand implements Command {
             Job job = jobs.get(i);
             String marker = (i == size - 1) ? "+" : (i == size - 2) ? "-" : " ";
 
-            if (job.process().isAlive()) {
-                System.out.println(format(job.number(), marker, "Running", job.command() + " &"));
-            } else {
+            if (!job.process().isAlive()) {
                 System.out.println(format(job.number(), marker, "Done", job.command()));
                 finished.add(job);
+            } else if (showRunning) {
+                System.out.println(format(job.number(), marker, "Running", job.command() + " &"));
             }
         }
         jobs.removeAll(finished);
-        return currentDir;
     }
-
-    private String format(int number, String marker, String status, String command) {
+    private static String format(int number, String marker, String status, String command) {
         return String.format("[%d]%s  %-24s%s", number, marker, status, command);
     }
 }
