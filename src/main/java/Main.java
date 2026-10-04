@@ -11,10 +11,7 @@ import org.jline.reader.*;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintStream;
+import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -25,21 +22,18 @@ public class Main {
     private record ParsedCommand(String[] tokens, Path stdoutFile, boolean appendStdout, Path stderrFile, boolean appendStderr) {}
 
     public static void main(String[] args) throws Exception {
-        Scanner scanner = new Scanner(System.in);
+
         Path currentDirectory = Paths.get("").toAbsolutePath();
         List<Job> jobs = new ArrayList<>();
 
-        Completer completer = (reader, line, candidates) -> {
-            if (line.wordIndex() == 0) {   // only complete the command name, not arguments
-                Trie trie = buildCommandTrie();
-                for (String match : trie.startsWith(line.word())) {
-                    candidates.add(new Candidate(match));
-                }
-            }
-        };
-
         Terminal terminal = TerminalBuilder.builder().system(true).build();
-        LineReader reader = LineReaderBuilder.builder().terminal(terminal).completer(completer).build();
+        LineReader reader = LineReaderBuilder.builder()
+                .terminal(terminal)
+                .build();
+        reader.setOpt(LineReader.Option.DISABLE_EVENT_EXPANSION);
+
+        reader.getWidgets().put("shell-complete", () -> completeOnTab(reader));
+        reader.getKeyMaps().get(LineReader.MAIN).bind(new Reference("shell-complete"), "\t");
 
         reader.setOpt(LineReader.Option.DISABLE_EVENT_EXPANSION);
 
@@ -53,8 +47,9 @@ public class Main {
 
         while (true) {
             JobsCommand.reap(jobs, false);
-            String input;
+            lastTabBuffer = null;
 
+            String input;
             try {
                 input = reader.readLine("$ ");
             }catch (UserInterruptException e){
@@ -286,5 +281,45 @@ public class Main {
             }
         }
         return trie;
+    }
+
+    private static String lastTabBuffer = null;
+
+    private static boolean completeOnTab(LineReader reader) {
+        String buffer = reader.getBuffer().toString();
+        PrintWriter out = reader.getTerminal().writer();
+
+        // only complete the command name, not arguments
+        if (buffer.isEmpty() || buffer.contains(" ")) {
+            return true;
+        }
+
+        List<String> matches = buildCommandTrie().startsWith(buffer);
+
+        if (matches.size() == 1) {
+            // single match: finish the word and add the trailing space
+            reader.getBuffer().write(matches.get(0).substring(buffer.length()) + " ");
+            lastTabBuffer = null;
+        } else if (matches.isEmpty()) {
+            ring(out);
+            lastTabBuffer = null;
+        } else if (buffer.equals(lastTabBuffer)) {
+            // second TAB on the same text: list the matches, then redraw the prompt with the prefix
+            out.println();
+            out.println(String.join("  ", matches));
+            out.flush();
+            reader.callWidget(LineReader.REDRAW_LINE);
+            reader.callWidget(LineReader.REDISPLAY);
+        } else {
+            // first TAB with several matches: just ring the bell
+            lastTabBuffer = buffer;
+            ring(out);
+        }
+        return true;
+    }
+
+    private static void ring(PrintWriter out) {
+        out.print("\007");
+        out.flush();
     }
 }
