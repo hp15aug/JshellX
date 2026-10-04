@@ -285,6 +285,18 @@ public class Main {
 
     private static String lastTabBuffer = null;
 
+    private static String longestCommonPrefix(List<String> sortedWords) {
+        // the list is sorted, so the first and last words are the most different pair
+        String first = sortedWords.getFirst();
+        String last = sortedWords.getLast();
+
+        int i = 0;
+        while (i < first.length() && i < last.length() && first.charAt(i) == last.charAt(i)) {
+            i++;
+        }
+        return first.substring(0, i);
+    }
+
     private static boolean completeOnTab(LineReader reader) {
         String buffer = reader.getBuffer().toString();
         PrintWriter out = reader.getTerminal().writer();
@@ -296,22 +308,32 @@ public class Main {
 
         List<String> matches = buildCommandTrie().startsWith(buffer);
 
-        if (matches.size() == 1) {
-            // single match: finish the word and add the trailing space
-            reader.getBuffer().write(matches.get(0).substring(buffer.length()) + " ");
-            lastTabBuffer = null;
-        } else if (matches.isEmpty()) {
+        if (matches.isEmpty()) {
             ring(out);
             lastTabBuffer = null;
-        } else if (buffer.equals(lastTabBuffer)) {
-            // second TAB on the same text: list the matches, then redraw the prompt with the prefix
+            return true;
+        }
+
+        if (matches.size() == 1) {
+            reader.getBuffer().write(matches.get(0).substring(buffer.length()) + " ");
+            lastTabBuffer = null;
+            return true;
+        }
+
+        String common = longestCommonPrefix(matches);
+        if (common.length() > buffer.length()) {
+            reader.getBuffer().write(common.substring(buffer.length()));
+            lastTabBuffer = null;
+            return true;
+        }
+
+        if (buffer.equals(lastTabBuffer)) {
             out.println();
             out.println(String.join("  ", matches));
             out.flush();
             reader.callWidget(LineReader.REDRAW_LINE);
             reader.callWidget(LineReader.REDISPLAY);
         } else {
-            // first TAB with several matches: just ring the bell
             lastTabBuffer = buffer;
             ring(out);
         }
