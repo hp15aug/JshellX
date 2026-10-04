@@ -29,14 +29,10 @@ public class Main {
         Path currentDirectory = Paths.get("").toAbsolutePath();
         List<Job> jobs = new ArrayList<>();
 
-        Trie trie = new Trie();
-        for(String builtin: builtInCommands){
-            trie.insert(builtin);
-        }
-
-        Completer completer = (reader, line, candidates ) -> {
-            if (line.wordIndex() == 0) {
-                for(String match: trie.startsWith(line.word())){
+        Completer completer = (reader, line, candidates) -> {
+            if (line.wordIndex() == 0) {   // only complete the command name, not arguments
+                Trie trie = buildCommandTrie();
+                for (String match : trie.startsWith(line.word())) {
                     candidates.add(new Candidate(match));
                 }
             }
@@ -56,12 +52,6 @@ public class Main {
                 new CdCommand());
 
         while (true) {
-//            try {
-//                Thread.sleep(50);
-//            } catch (InterruptedException e) {
-//                Thread.currentThread().interrupt();
-//            }
-
             JobsCommand.reap(jobs, false);
             String input;
 
@@ -270,5 +260,31 @@ public class Main {
             tokens.add(current.toString());
         }
         return tokens.toArray(new String[0]);
+    }
+
+    private static Trie buildCommandTrie() {
+        Trie trie = new Trie();
+
+        for (String builtin : builtInCommands) {
+            trie.insert(builtin);
+        }
+
+        String pathEnv = System.getenv("PATH");
+        if (pathEnv == null || pathEnv.isEmpty()) {
+            return trie;
+        }
+
+        for (String dir : pathEnv.split(File.pathSeparator)) {
+            File[] files = new File(dir).listFiles();
+            if (files == null) {
+                continue;
+            }
+            for (File file : files) {
+                if (file.isFile() && file.canExecute()) {
+                    trie.insert(file.getName());
+                }
+            }
+        }
+        return trie;
     }
 }
