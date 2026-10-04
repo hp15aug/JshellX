@@ -1,3 +1,4 @@
+import autocomplete.Trie;
 import command.Command;
 import command.cd.CdCommand;
 import command.echo.EchoCommand;
@@ -6,6 +7,9 @@ import command.jobs.Job;
 import command.jobs.JobsCommand;
 import command.pwd.PwdCommand;
 import command.type.Type;
+import org.jline.reader.*;
+import org.jline.terminal.Terminal;
+import org.jline.terminal.TerminalBuilder;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -16,7 +20,6 @@ import java.nio.file.Paths;
 import java.util.*;
 
 public class Main {
-
     private static final Set<String> builtInCommands = Set.of("echo", "exit", "type", "pwd", "cd", "jobs");
 
     private record ParsedCommand(String[] tokens, Path stdoutFile, boolean appendStdout, Path stderrFile, boolean appendStderr) {}
@@ -25,6 +28,24 @@ public class Main {
         Scanner scanner = new Scanner(System.in);
         Path currentDirectory = Paths.get("").toAbsolutePath();
         List<Job> jobs = new ArrayList<>();
+
+        Trie trie = new Trie();
+        for(String builtin: builtInCommands){
+            trie.insert(builtin);
+        }
+
+        Completer completer = (reader, line, candidates ) -> {
+            if (line.wordIndex() == 0) {
+                for(String match: trie.startsWith(line.word())){
+                    candidates.add(new Candidate(match));
+                }
+            }
+        };
+
+        Terminal terminal = TerminalBuilder.builder().system(true).build();
+        LineReader reader = LineReaderBuilder.builder().terminal(terminal).completer(completer).build();
+
+        reader.setOpt(LineReader.Option.DISABLE_EVENT_EXPANSION);
 
         List<Command> commandHandlers = List.of(
                 new ExitCommand(),
@@ -35,20 +56,23 @@ public class Main {
                 new CdCommand());
 
         while (true) {
-            try {
-                Thread.sleep(50);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+//            try {
+//                Thread.sleep(50);
+//            } catch (InterruptedException e) {
+//                Thread.currentThread().interrupt();
+//            }
 
             JobsCommand.reap(jobs, false);
-            System.out.print("$ ");
+            String input;
 
-            if (!scanner.hasNextLine()) {
+            try {
+                input = reader.readLine("$ ");
+            }catch (UserInterruptException e){
+                continue;
+            }catch (EndOfFileException e){
                 break;
             }
 
-            String input = scanner.nextLine();
             if (input.trim().isEmpty()) {
                 continue;
             }
