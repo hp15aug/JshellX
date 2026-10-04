@@ -2,6 +2,7 @@ import command.Command;
 import command.cd.CdCommand;
 import command.echo.EchoCommand;
 import command.exit.ExitCommand;
+import command.jobs.Job;
 import command.jobs.JobsCommand;
 import command.pwd.PwdCommand;
 import command.type.Type;
@@ -25,13 +26,14 @@ public class Main {
     public static void main(String[] args) throws Exception {
         Scanner scanner = new Scanner(System.in);
         Path currentDirectory = Paths.get("").toAbsolutePath();
+        List<Job> jobs = new ArrayList<>();
 
         List<Command> commandHandlers = List.of(
                 new ExitCommand(),
                 new EchoCommand(),
                 new Type(builtInCommands),
                 new PwdCommand(),
-                new JobsCommand(),
+                new JobsCommand(jobs),
                 new CdCommand());
 
         while (true) {
@@ -64,7 +66,7 @@ public class Main {
             if (handler != null) {
                 currentDirectory = executeBuiltin(handler, input, inputArray, currentDirectory, parsed);
             } else {
-                executeExternalCommand(input, inputArray, currentDirectory, parsed, background);
+                executeExternalCommand(input, inputArray, currentDirectory, parsed, background, jobs);
             }
         }
     }
@@ -138,7 +140,7 @@ public class Main {
     }
 
     private static void executeExternalCommand(String input, String[] inputArray,
-                                               Path currentDirectory, ParsedCommand parsed, boolean background) throws Exception {
+                                               Path currentDirectory, ParsedCommand parsed, boolean background, List<Job> jobs) throws Exception {
         String commandName = inputArray[0];
         String executablePath = Command.isAvailable(commandName);
 
@@ -175,10 +177,10 @@ public class Main {
         try {
             Process process = processBuilder.start();
             if (background) {
-                int jobId = nextJobNumber;
-                System.out.println("["+(nextJobNumber++)+"] "+process.pid());
-
-                JobsCommand.activeJobs.add(new JobsCommand.Job(jobId, process, input));
+                int jobId = nextJobNumber++;
+                String commandText = input.trim().replaceAll("\\s*&$", "");
+                jobs.add(new Job(jobId, process, commandText));
+                System.out.println("[" + jobId + "] " + process.pid());
             }else{
                 process.waitFor();
             }

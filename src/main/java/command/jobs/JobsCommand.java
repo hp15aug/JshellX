@@ -8,9 +8,11 @@ import java.util.List;
 
 public class JobsCommand implements Command {
 
-    public record Job(int id, Process process, String command){}
+    private final List<Job> jobs;
 
-    public static final List<Job> activeJobs = new ArrayList<>();
+    public JobsCommand(List<Job> jobs) {
+        this.jobs = jobs;
+    }
 
     @Override
     public boolean matches(String input, String[] inputArray) {
@@ -19,17 +21,25 @@ public class JobsCommand implements Command {
 
     @Override
     public Path execute(String input, String[] inputArray, Path currentDir) throws Exception {
-        int size = activeJobs.size();
-        for(int i=0; i<size; i++){
-            Job job = activeJobs.get(i);
-            if (size - 1 == i) {
-                System.out.printf("[%d]+ %-24s%s\n", job.id(), "Running", job.command());
-            }else if(size - 2 == i){
-                System.out.printf("[%d]- %-24s%s\n", job.id(), "Running", job.command());
-            }else{
-                System.out.printf("[%d]  %-24s%s\n", job.id(), "Running", job.command());
+        List<Job> finished = new ArrayList<>();
+        int size = jobs.size();
+
+        for (int i = 0; i < size; i++) {
+            Job job = jobs.get(i);
+            String marker = (i == size - 1) ? "+" : (i == size - 2) ? "-" : " ";
+
+            if (job.process().isAlive()) {
+                System.out.println(format(job.number(), marker, "Running", job.command() + " &"));
+            } else {
+                System.out.println(format(job.number(), marker, "Done", job.command()));
+                finished.add(job);
             }
         }
+        jobs.removeAll(finished);
         return currentDir;
+    }
+
+    private String format(int number, String marker, String status, String command) {
+        return String.format("[%d]%s  %-24s%s", number, marker, status, command);
     }
 }
