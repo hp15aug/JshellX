@@ -19,8 +19,6 @@ public class Main {
 
     private static final Set<String> builtInCommands = Set.of("echo", "exit", "type", "pwd", "cd", "jobs");
 
-    private static int nextJobNumber = 1;
-
     private record ParsedCommand(String[] tokens, Path stdoutFile, boolean appendStdout, Path stderrFile, boolean appendStderr) {}
 
     public static void main(String[] args) throws Exception {
@@ -37,6 +35,12 @@ public class Main {
                 new CdCommand());
 
         while (true) {
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
             JobsCommand.reap(jobs, false);
             System.out.print("$ ");
 
@@ -70,6 +74,14 @@ public class Main {
                 executeExternalCommand(input, inputArray, currentDirectory, parsed, background, jobs);
             }
         }
+    }
+
+    private static int nextJobNumber(List<Job> jobs) {
+        int highest = 0;
+        for (Job job : jobs) {
+            highest = Math.max(highest, job.number());
+        }
+        return highest + 1;
     }
 
     private static ParsedCommand extractRedirects(String[] tokens, Path currentDirectory) {
@@ -178,7 +190,7 @@ public class Main {
         try {
             Process process = processBuilder.start();
             if (background) {
-                int jobId = nextJobNumber++;
+                int jobId = nextJobNumber(jobs);
                 String commandText = input.trim().replaceAll("\\s*&$", "");
                 jobs.add(new Job(jobId, process, commandText));
                 System.out.println("[" + jobId + "] " + process.pid());
